@@ -26,6 +26,15 @@ from utils.misc import set_seed
 from utils.data import retokenize, build_features
 from utils.training import train, evaluate
 
+import sys
+sys.path.append("../../")
+from utils import eval_datareader
+
+from collections import namedtuple
+SequenceLabellingExample = namedtuple(
+    'SequenceLabellingExample', ['id', 'token_sequence', 'label_sequence'])
+
+
 from download import MODEL_TO_URL
 AVAILABLE_MODELS = list(MODEL_TO_URL.keys()) + ['bert-base-uncased']
 
@@ -39,6 +48,13 @@ def parse_args():
         choices=['classification', 'sequence_labelling'],
         help="The evaluation task."
     )
+    parser.add_argument(
+        "--DATAPATH",
+        type=str,
+        required=True,
+        help="Annotated data path for finetuning and evaluation."
+    )
+
     parser.add_argument(
         "--embedding",
         type=str,
@@ -76,8 +92,8 @@ def parse_args():
         help="Number of training epochs."
     )
     parser.add_argument(
-        "--validation_ratio",
-        default=0.5, type=float, help="Proportion of training set to use as a validation set.")
+        "--dev_ratio",
+        default=0.5, type=float, help="Proportion of training set to use as a dev set.")
     parser.add_argument(
         "--learning_rate",
         default=5e-5, type=float, help="The initial learning rate for Adam.")
@@ -96,7 +112,7 @@ def parse_args():
     parser.add_argument(
         "--do_train",
         action="store_true",
-        help="Do training & validation."
+        help="Do training & dev."
     )
     parser.add_argument(
         "--do_predict",
@@ -112,6 +128,8 @@ def parse_args():
 
     args = parser.parse_args()
     args.start_time = datetime.datetime.now().strftime('%d-%m-%Y_%Hh%Mm%Ss')
+
+    # TODO : Change results reporting
     args.output_dir = os.path.join(
         'results',
         args.task,
@@ -140,6 +158,20 @@ def parse_args():
 
     return args
 
+def map_data_to_labels(train_labels, dev_labels, test_labels):
+    '''Creates label to ID mapping, returns mapped versions of train, dev, test labels'''
+
+    all_labels = sorted(list({label for sent in train_labels for label in sent.split()}))
+    label2idx = {label:idx for idx, label in enumerate(all_labels)}
+
+    train_labels_ids = [[label2idx[label] for label in sent.split()] for sent in train_labels]
+    dev_labels_ids = [[label2idx[label] for label in sent.split()] for sent in dev_labels]
+    test_labels_ids = [[label2idx[label] for label in sent.split()] for sent in test_labels]
+
+    
+    return label2idx, train_labels_ids, dev_labels_ids, test_labels_ids
+
+
 def main(args):
     """ Main function. """
 
@@ -154,38 +186,57 @@ def main(args):
     except OSError:
         # For CharacterBert models use BertTokenizer.basic_tokenizer for tokenization
         # and CharacterIndexer for indexing 
-        tokenizer = BertTokenizer.from_pretrained(
-            os.path.join('pretrained-models', 'bert-base-uncased'),
-            do_lower_case=args.do_lower_case)
+        # tokenizer = BertTokenizer.from_pretrained(
+            # os.path.join('pretrained-models', 'bert-base-uncased'),
+        tokenizer = BertTokenizer.from_pretrained('bert-base-uncased', do_lower_case = args.do_lower_case)
         tokenizer = tokenizer.basic_tokenizer
         characters_indexer = CharacterIndexer()
     logging.disable(logging.NOTSET)
 
     tokenization_function = tokenizer.tokenize
 
+
     # Pre-processsing: apply basic tokenization (both) then split into wordpieces (BERT only)
+    train_data, train_labels, dev_data, dev_labels, test_data, test_labels = \
+     eval_datareader.get_data(args.DATAPATH, SEED = args.seed)
+    
+    label2idx, train_labels_ids, dev_labels_ids, test_labels_ids = \
+     map_data_to_labels(train_labels, dev_labels, test_labels)
+    special_token_label = len(label2idx) 
+    NUM_LABELS = len(label2idx)+1
+
     data = {}
-    for split in ['train', 'test']:
-        if args.task == 'classification':
-            func = load_classification_dataset
-        elif args.task == 'sequence_labelling':
-            func = load_sequence_labelling_dataset
-        else:
-            raise NotImplementedError
 
-        data[split] = func(step=split, do_lower_case=args.do_lower_case)
-        retokenize(data[split], tokenization_function)
+    data["train"] = [SequenceLabellingExample( \
+            id=i, \
+            token_sequence=d.split(), \
+            label_sequence=l.split(), \
+        ) for i, (d, l) in enumerate(list(zip(train_data, train_labels_ids))) if len(d.split())==len(l.split())]
 
-    logging.info('Splitting training data into train / validation sets...')
-    data['validation'] = data['train'][:int(args.validation_ratio * len(data['train']))]
-    data['train'] = data['train'][int(args.validation_ratio * len(data['train'])):]
-    logging.info('New number of training sequences: %d', len(data['train']))
-    logging.info('New number of validation sequences: %d', len(data['validation']))
+    data["dev"] = [SequenceLabellingExample( \
+            id=i, \
+            token_sequence=d.split(), \
+            label_sequence=l.split(), \
+        ) for i, (d, l) in enumerate(list(zip(dev_data, dev_labels_ids))) if len(d.split())==len(l.split())]
+
+    data["test"] = [SequenceLabellingExample( \
+            id=i, \
+            token_sequence=d.split(), \
+            label_sequence=l.split(), \
+        ) for i, (d, l) in enumerate(list(zip(test_data, test_labels_ids))) if len(d.split())==len(l.split())]
+
+        # retokenize(data[split], tokenization_function)
+
+    # logging.info('Splitting training data into train / dev sets...')
+    # data['dev'] = data['train'][:int(args.dev_ratio * len(data['train']))]
+    # data['train'] = data['train'][int(args.dev_ratio * len(data['train'])):]
+    # logging.info('New number of training sequences: %d', len(data['train']))
+    # logging.info('New number of dev sequences: %d', len(data['dev']))
 
     # Count target labels or classes
     if args.task == 'classification':
         counter_all = Counter(
-            [example.label for example in data['train'] + data['validation'] + data['test']])
+            [example.label for example in data['train'] + data['dev'] + data['test']])
         counter = Counter(
             [example.label for example in data['train']])
 
@@ -195,14 +246,14 @@ def main(args):
             3 + max(
                 map(len, [
                     e.tokens_a if e.tokens_b is None else e.tokens_a + e.tokens_b
-                    for e in data['train'] + data['validation'] + data['test']
+                    for e in data['train'] + data['dev'] + data['test']
                 ])
             )
         )
     elif args.task == 'sequence_labelling':
         counter_all = Counter(
             [label
-             for example in data['train'] + data['validation'] + data['test']
+             for example in data['train'] + data['dev'] + data['test']
              for label in example.label_sequence])
         counter = Counter(
             [label
@@ -215,7 +266,7 @@ def main(args):
             5 + max(
                 map(len, [
                     e.token_sequence
-                    for e in data['train'] + data['validation'] + data['test']
+                    for e in data['train'] + data['dev'] + data['test']
                 ])
             )
         )
@@ -336,8 +387,8 @@ def main(args):
 
         # Save metrics
         with open(os.path.join(args.output_dir, 'performance_on_test_set.txt'), 'w') as f:
-            f.write(f'best validation score: {best_val_metric}\n')
-            f.write(f'best validation epoch: {best_val_epoch}\n')
+            f.write(f'best dev score: {best_val_metric}\n')
+            f.write(f'best dev epoch: {best_val_epoch}\n')
             f.write('--- Performance on test set ---\n')
             for k, v in results.items():
                 f.write(f'{k}: {v}\n')

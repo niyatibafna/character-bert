@@ -11,6 +11,7 @@ from utils.data import retokenize
 DATA_PATH = 'data/'
 ClassificationExample = namedtuple(
     'ClassificationExample', ['id', 'tokens_a', 'tokens_b', 'label'])
+
 SequenceLabellingExample = namedtuple(
     'SequenceLabellingExample', ['id', 'token_sequence', 'label_sequence'])
 
