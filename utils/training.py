@@ -115,7 +115,7 @@ def train(args, dataset, model, tokenizer, labels, pad_token_label_id):
                     # -- Only evaluate when single GPU otherwise metrics may not average well
                     results, _ = evaluate(
                         args=args,
-                        eval_dataset=dataset["validation"],
+                        eval_dataset=dataset["dev"],
                         model=model, labels=labels,
                         pad_token_label_id=pad_token_label_id
                     )

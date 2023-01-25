@@ -54,6 +54,12 @@ def parse_args():
         required=True,
         help="Annotated data path for finetuning and evaluation."
     )
+    parser.add_argument(
+        "--OUTPATH",
+        type=str,
+        required=True,
+        help="Output dir for trained model"
+    )
 
     parser.add_argument(
         "--embedding",
@@ -70,13 +76,13 @@ def parse_args():
     parser.add_argument(
         "--train_batch_size",
         type=int,
-        default=1,
+        default=12,
         help="Batch size to use for training."
     )
     parser.add_argument(
         "--eval_batch_size",
         type=int,
-        default=1,
+        default=12,
         help="Batch size to use for evaluation."
     )
     parser.add_argument(
@@ -130,11 +136,12 @@ def parse_args():
     args.start_time = datetime.datetime.now().strftime('%d-%m-%Y_%Hh%Mm%Ss')
 
     # TODO : Change results reporting
-    args.output_dir = os.path.join(
-        'results',
-        args.task,
-        args.embedding,
-        f'{args.start_time}__seed-{args.seed}')
+    # args.output_dir = os.path.join(
+    #     'results',
+    #     args.task,
+    #     args.embedding,
+    #     f'{args.start_time}__seed-{args.seed}')
+
 
     # --------------------------------- INIT ---------------------------------
 
@@ -367,10 +374,10 @@ def main(args):
 
         logging.disable(logging.INFO)
         if 'character' not in args.embedding:
-            model = model.from_pretrained(args.output_dir)
+            model = model.from_pretrained(args.OUTPATH)
         else:
             state_dict = torch.load(
-                os.path.join(args.output_dir, 'pytorch_model.bin'), map_location='cpu')
+                os.path.join(args.OUTPATH, 'pytorch_model.bin'), map_location='cpu')
             model = model(config=config)
             model.bert = CharacterBertModel(config=config)
             model.load_state_dict(state_dict, strict=True)
@@ -386,7 +393,7 @@ def main(args):
         )
 
         # Save metrics
-        with open(os.path.join(args.output_dir, 'performance_on_test_set.txt'), 'w') as f:
+        with open(os.path.join(args.OUTPATH, 'performance_on_test_set.txt'), 'w') as f:
             f.write(f'best dev score: {best_val_metric}\n')
             f.write(f'best dev epoch: {best_val_epoch}\n')
             f.write('--- Performance on test set ---\n')
