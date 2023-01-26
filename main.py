@@ -40,6 +40,7 @@ AVAILABLE_MODELS = list(MODEL_TO_URL.keys()) + ['bert-base-uncased']
 
 def parse_args():
     """ Parse command line arguments and initialize experiment. """
+    print("Parsing arguments...")
     parser = argparse.ArgumentParser()
     parser.add_argument(
         "--task",
@@ -55,7 +56,7 @@ def parse_args():
         help="Annotated data path for finetuning and evaluation."
     )
     parser.add_argument(
-        "--OUTPATH",
+        "--output_dir",
         type=str,
         required=True,
         help="Output dir for trained model"
@@ -67,6 +68,12 @@ def parse_args():
         required=True,
         choices=AVAILABLE_MODELS,
         help="The model to use."
+    )
+    parser.add_argument(
+        "--MODEL_PATH",
+        type=str,
+        required=True,
+        help="Model path"
     )
     parser.add_argument(
         "--do_lower_case",
@@ -181,16 +188,16 @@ def map_data_to_labels(train_labels, dev_labels, test_labels):
 
 def main(args):
     """ Main function. """
-
+    print("Running main...")
     # --------------------------------- DATA ---------------------------------
 
     # Tokenizer
     logging.disable(logging.INFO)
-    try:
+    if 'character' not in args.embedding:
         tokenizer = BertTokenizer.from_pretrained(
             os.path.join('pretrained-models', args.embedding),
             do_lower_case=args.do_lower_case)
-    except OSError:
+    else:
         # For CharacterBert models use BertTokenizer.basic_tokenizer for tokenization
         # and CharacterIndexer for indexing 
         # tokenizer = BertTokenizer.from_pretrained(
@@ -204,33 +211,37 @@ def main(args):
 
 
     # Pre-processsing: apply basic tokenization (both) then split into wordpieces (BERT only)
+    print("Preprocessing...")
     train_data, train_labels, dev_data, dev_labels, test_data, test_labels = \
      eval_datareader.get_data(args.DATAPATH, SEED = args.seed)
     
+    # train_data, train_labels = train_data[:100], train_labels[:100]
+
     label2idx, train_labels_ids, dev_labels_ids, test_labels_ids = \
      map_data_to_labels(train_labels, dev_labels, test_labels)
     special_token_label = len(label2idx) 
     NUM_LABELS = len(label2idx)+1
 
+    # train_data, train_labels_ids = train_data[:100], train_labels_ids[:100]
     data = {}
 
     data["train"] = [SequenceLabellingExample( \
             id=i, \
             token_sequence=d.split(), \
-            label_sequence=l.split(), \
-        ) for i, (d, l) in enumerate(list(zip(train_data, train_labels_ids))) if len(d.split())==len(l.split())]
+            label_sequence=l, \
+        ) for i, (d, l) in enumerate(list(zip(train_data, train_labels_ids))) if len(d.split())==len(l)]
 
     data["dev"] = [SequenceLabellingExample( \
             id=i, \
             token_sequence=d.split(), \
-            label_sequence=l.split(), \
-        ) for i, (d, l) in enumerate(list(zip(dev_data, dev_labels_ids))) if len(d.split())==len(l.split())]
+            label_sequence=l, \
+        ) for i, (d, l) in enumerate(list(zip(dev_data, dev_labels_ids))) if len(d.split())==len(l)]
 
     data["test"] = [SequenceLabellingExample( \
             id=i, \
             token_sequence=d.split(), \
-            label_sequence=l.split(), \
-        ) for i, (d, l) in enumerate(list(zip(test_data, test_labels_ids))) if len(d.split())==len(l.split())]
+            label_sequence=l, \
+        ) for i, (d, l) in enumerate(list(zip(test_data, test_labels_ids))) if len(d.split())==len(l)]
 
         # retokenize(data[split], tokenization_function)
 
@@ -325,7 +336,7 @@ def main(args):
     logging.info('Loading `%s` model...', args.embedding)
     logging.disable(logging.INFO)
     config = BertConfig.from_pretrained(
-        os.path.join('pretrained-models', args.embedding),
+        "../../training_characterBERT/data/character-bert/config.json",
         num_labels=num_labels)
     if 'character' not in args.embedding:
         model = model.from_pretrained(
@@ -333,8 +344,12 @@ def main(args):
             config=config)
     else:
         model = model(config=config)
+        # model.bert = CharacterBertModel.from_pretrained(
+        #     os.path.join('pretrained-models', args.embedding),
+        #     config=config)
+        model.config.return_dict = False
         model.bert = CharacterBertModel.from_pretrained(
-            os.path.join('pretrained-models', args.embedding),
+            args.MODEL_PATH,
             config=config)
     logging.disable(logging.NOTSET)
 
@@ -356,7 +371,7 @@ def main(args):
             model=model,
             tokenizer=tokenizer,
             labels=labels,
-            pad_token_label_id=pad_token_label_id
+            pad_token_label_id=pad_token_label_id,
         )
         logging.info("global_step = %s, average training loss = %s", global_step, train_loss)
         logging.info("Best performance: Epoch=%d, Value=%s", best_val_epoch, best_val_metric)
@@ -374,10 +389,10 @@ def main(args):
 
         logging.disable(logging.INFO)
         if 'character' not in args.embedding:
-            model = model.from_pretrained(args.OUTPATH)
+            model = model.from_pretrained(args.output_dir)
         else:
             state_dict = torch.load(
-                os.path.join(args.OUTPATH, 'pytorch_model.bin'), map_location='cpu')
+                os.path.join(args.output_dir, 'pytorch_model.bin'), map_location='cpu')
             model = model(config=config)
             model.bert = CharacterBertModel(config=config)
             model.load_state_dict(state_dict, strict=True)
@@ -393,7 +408,7 @@ def main(args):
         )
 
         # Save metrics
-        with open(os.path.join(args.OUTPATH, 'performance_on_test_set.txt'), 'w') as f:
+        with open(os.path.join(args.output_dir, 'performance_on_test_set.txt'), 'w') as f:
             f.write(f'best dev score: {best_val_metric}\n')
             f.write(f'best dev epoch: {best_val_epoch}\n')
             f.write('--- Performance on test set ---\n')
