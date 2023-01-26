@@ -205,12 +205,32 @@ def evaluate(args, eval_dataset, model, labels, pad_token_label_id):
                     out_label_list[i].append(label_map[out_label_ids[i][j]])
                     preds_list[i].append(label_map[preds[i][j]])
 
+        # print("out_label_ids:", out_label_ids)
+        # print("preds_list: ", preds_list)
+        print(len(out_label_ids))
+        print(len(preds_list))
+        print("\n\n")
+        for i in range(len(out_label_ids)):
+            print(len(out_label_ids[i]))
+            print(len(preds_list[i]))
+            print("\n\n")
+        out_label_list = [l for sent in out_label_list for l in sent]
+        preds_list = [l for sent in preds_list for l in sent]
+
         results = {
             "loss": eval_loss,
-            "precision": seqeval_metrics.precision_score(out_label_list, preds_list),
-            "recall": seqeval_metrics.recall_score(out_label_list, preds_list),
-            "f1": seqeval_metrics.f1_score(out_label_list, preds_list),
+            "precision": sklearn_metrics.precision_score(out_label_list, preds_list, average='micro'),
+            "recall": sklearn_metrics.recall_score(out_label_list, preds_list, average='micro'),
+            "f1": sklearn_metrics.f1_score(out_label_list, preds_list, average='micro'),
+            "accuracy": sklearn_metrics.accuracy_score(out_label_list, preds_list),
         }
+
+        # results = {
+        #     "loss": eval_loss,
+        #     "precision": seqeval_metrics.precision_score(out_label_list, preds_list),
+        #     "recall": seqeval_metrics.recall_score(out_label_list, preds_list),
+        #     "f1": seqeval_metrics.f1_score(out_label_list, preds_list),
+        # }
 
     logging.info("***** Eval results *****")
     for key in sorted(results.keys()):
