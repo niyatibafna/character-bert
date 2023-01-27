@@ -27,8 +27,9 @@ from utils.data import retokenize, build_features
 from utils.training import train, evaluate
 
 import sys
-sys.path.append("../../")
+# sys.path.append("../../")
 from utils import eval_datareader
+from evaluation.evaluation import save_results_to_file
 
 from collections import namedtuple
 SequenceLabellingExample = namedtuple(
@@ -42,6 +43,12 @@ def parse_args():
     """ Parse command line arguments and initialize experiment. """
     print("Parsing arguments...")
     parser = argparse.ArgumentParser()
+    parser.add_argument(
+        "--EXP_ID",
+        type=str,
+        required=True,
+        help="Experiment ID"
+    )
     parser.add_argument(
         "--task",
         type=str,
@@ -132,6 +139,13 @@ def parse_args():
         action="store_true",
         help="Do prediction on the test set."
     )
+    parser.add_argument(
+        "--save_results",
+        action="store_false",
+        help="Save results in file"
+    )
+    
+
     parser.add_argument(
         "--seed",
         type=int,
@@ -407,13 +421,17 @@ def main(args):
             pad_token_label_id=pad_token_label_id
         )
 
-        # Save metrics
-        with open(os.path.join(args.output_dir, 'performance_on_test_set.txt'), 'w') as f:
-            f.write(f'best dev score: {best_val_metric}\n')
-            f.write(f'best dev epoch: {best_val_epoch}\n')
-            f.write('--- Performance on test set ---\n')
-            for k, v in results.items():
-                f.write(f'{k}: {v}\n')
+        if args.save_results:
+            save_results_to_file(args.EXP_ID, args.DATAPATH, results)
+
+
+        # # Save metrics
+        # with open(os.path.join(args.output_dir, 'performance_on_test_set.txt'), 'w') as f:
+        #     f.write(f'best dev score: {best_val_metric}\n')
+        #     f.write(f'best dev epoch: {best_val_epoch}\n')
+        #     f.write('--- Performance on test set ---\n')
+        #     for k, v in results.items():
+        #         f.write(f'{k}: {v}\n')
 
 if __name__ == "__main__":
     main(parse_args())
