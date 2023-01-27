@@ -9,6 +9,7 @@ import datetime
 import tqdm
 import numpy as np
 import sklearn.metrics as sklearn_metrics
+from sklearn.metrics import precision_recall_fscore_support
 import metrics.sequence_labelling as seqeval_metrics
 
 import torch
@@ -16,6 +17,9 @@ from torch.utils.data import SequentialSampler, RandomSampler, DataLoader
 from transformers import AdamW, get_linear_schedule_with_warmup
 
 from utils.misc import set_seed
+import sys
+
+
 
 
 def train(args, dataset, model, tokenizer, labels, pad_token_label_id):
@@ -207,23 +211,29 @@ def evaluate(args, eval_dataset, model, labels, pad_token_label_id):
 
         # print("out_label_ids:", out_label_ids)
         # print("preds_list: ", preds_list)
-        print(len(out_label_ids))
-        print(len(preds_list))
-        print("\n\n")
-        for i in range(len(out_label_ids)):
-            print(len(out_label_ids[i]))
-            print(len(preds_list[i]))
-            print("\n\n")
-        out_label_list = [l for sent in out_label_list for l in sent]
-        preds_list = [l for sent in preds_list for l in sent]
+        # print(len(out_label_list))
+        # print(len(preds_list))
+        # print("\n\n")
+        # for i in range(len(out_label_list)):
+        #     print(len(out_label_list[i]))
+        #     print(len(preds_list[i]))
+        #     print("\n\n")
+        true_labels = [l for sent in out_label_list for l in sent]
+        pred_labels = [l for sent in preds_list for l in sent]
 
-        results = {
-            "loss": eval_loss,
-            "precision": sklearn_metrics.precision_score(out_label_list, preds_list, average='micro'),
-            "recall": sklearn_metrics.recall_score(out_label_list, preds_list, average='micro'),
-            "f1": sklearn_metrics.f1_score(out_label_list, preds_list, average='micro'),
-            "accuracy": sklearn_metrics.accuracy_score(out_label_list, preds_list),
-        }
+        scores_all = precision_recall_fscore_support(true_labels, pred_labels, average = "macro")
+        micro_scores_all = precision_recall_fscore_support(true_labels, pred_labels, average = "micro")
+        print(scores_all)
+        results = {"prec":scores_all[0], "rec":scores_all[1], "f1":scores_all[2],\
+            "micro_f1":micro_scores_all[2]}
+
+        # results = {
+        #     "loss": eval_loss,
+        #     "precision": sklearn_metrics.precision_score(out_label_list, preds_list, average='micro'),
+        #     "recall": sklearn_metrics.recall_score(out_label_list, preds_list, average='micro'),
+        #     "f1": sklearn_metrics.f1_score(out_label_list, preds_list, average='micro'),
+        #     "accuracy": sklearn_metrics.accuracy_score(out_label_list, preds_list),
+        # }
 
         # results = {
         #     "loss": eval_loss,
@@ -236,4 +246,4 @@ def evaluate(args, eval_dataset, model, labels, pad_token_label_id):
     for key in sorted(results.keys()):
         logging.info("  %s = %s", key, str(results[key]))
 
-    return results, preds_list
+    return results, pred_labels
