@@ -9,7 +9,7 @@ import datetime
 import tqdm
 import numpy as np
 import sklearn.metrics as sklearn_metrics
-from sklearn.metrics import precision_recall_fscore_support
+from sklearn.metrics import precision_recall_fscore_support, confusion_matrix
 import metrics.sequence_labelling as seqeval_metrics
 
 import torch
@@ -223,9 +223,12 @@ def evaluate(args, eval_dataset, model, labels, pad_token_label_id):
 
         scores_all = precision_recall_fscore_support(true_labels, pred_labels, average = "macro")
         micro_scores_all = precision_recall_fscore_support(true_labels, pred_labels, average = "micro")
+        conf_matrix = confusion_matrix(true_labels, pred_labels,\
+                        labels=list(range(len(args.all_labels))), normalize= "true")
         print(scores_all)
         results = {"prec":scores_all[0], "rec":scores_all[1], "f1":scores_all[2],\
-            "micro_f1":micro_scores_all[2]}
+            "micro_f1":micro_scores_all[2], "confusion_matrix": conf_matrix}
+       
 
         # results = {
         #     "loss": eval_loss,
@@ -246,4 +249,4 @@ def evaluate(args, eval_dataset, model, labels, pad_token_label_id):
     for key in sorted(results.keys()):
         logging.info("  %s = %s", key, str(results[key]))
 
-    return results, pred_labels
+    return results, preds_list

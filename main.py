@@ -190,6 +190,7 @@ def map_data_to_labels(train_labels, dev_labels, test_labels):
     '''Creates label to ID mapping, returns mapped versions of train, dev, test labels'''
 
     all_labels = sorted(list({label for sent in train_labels for label in sent.split()}))
+
     label2idx = {label:idx for idx, label in enumerate(all_labels)}
 
     train_labels_ids = [[label2idx[label] for label in sent.split()] for sent in train_labels]
@@ -230,6 +231,7 @@ def main(args):
      eval_datareader.get_data(args.DATAPATH, SEED = args.seed)
     
     # train_data, train_labels = train_data[:100], train_labels[:100]
+    args.all_labels = sorted(list({label for sent in train_labels for label in sent.split()}))
 
     label2idx, train_labels_ids, dev_labels_ids, test_labels_ids = \
      map_data_to_labels(train_labels, dev_labels, test_labels)
@@ -414,15 +416,20 @@ def main(args):
         model.to(args.device)
 
         # Compute predictions and metrics
-        results, _ = evaluate(
+        results, pred_labels = evaluate(
             args=args,
             eval_dataset=dataset["test"],
             model=model, labels=labels,
             pad_token_label_id=pad_token_label_id
         )
-
+        
         if args.save_results:
+            # del results["confusion_matrix"]
             save_results_to_file(args.EXP_ID, args.DATAPATH, results)
+
+        print("Error analysis at the word level...")
+        for idx, sent in enumerate(test_labels):
+            print(len(test_labels[idx]), len(pred_labels[idx]))
 
 
         # # Save metrics
