@@ -429,7 +429,7 @@ def main(args):
 
         print("Error analysis at the word level...")
         for idx, sent in enumerate(test_labels):
-            print(len(test_labels[idx]), len(pred_labels[idx]))
+            print(len(test_labels[idx].split()), len(pred_labels[idx]))
 
 
         # # Save metrics

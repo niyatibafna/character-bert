@@ -260,14 +260,14 @@ def convert_examples_to_features__tagging(
         assert len(segment_ids) == max_seq_length
         assert len(label_ids) == max_seq_length
 
-        if i < 3:
-            logging.info("*** Example ***")
-            logging.info("tokens: %s", " ".join([str(x) for x in tokens]))
-            logging.info("input_ids: %s", " ".join([str(x) for x in input_ids]))
-            logging.info("input_mask: %s", " ".join([str(x) for x in input_mask]))
-            logging.info("segment_ids: %s", " ".join([str(x) for x in segment_ids]))
-            logging.info("labels: %s", " ".join([str(x) for x in labels]))
-            logging.info("label_ids: %s", " ".join([str(x) for x in label_ids]))
+        # if i < 3:
+        #     logging.info("*** Example ***")
+        #     logging.info("tokens: %s", " ".join([str(x) for x in tokens]))
+        #     logging.info("input_ids: %s", " ".join([str(x) for x in input_ids]))
+        #     logging.info("input_mask: %s", " ".join([str(x) for x in input_mask]))
+        #     logging.info("segment_ids: %s", " ".join([str(x) for x in segment_ids]))
+        #     logging.info("labels: %s", " ".join([str(x) for x in labels]))
+        #     logging.info("label_ids: %s", " ".join([str(x) for x in label_ids]))
 
         features.append(
             InputFeatures(
